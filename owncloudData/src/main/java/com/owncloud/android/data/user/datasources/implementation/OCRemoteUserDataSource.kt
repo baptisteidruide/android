@@ -21,8 +21,10 @@ package com.owncloud.android.data.user.datasources.implementation
 
 import com.owncloud.android.data.executeRemoteOperation
 import com.owncloud.android.data.user.datasources.RemoteUserDataSource
+import com.owncloud.android.data.user.datasources.mapper.RemoteUserAvatarMapper
 import com.owncloud.android.data.user.datasources.mapper.RemoteUserInfoMapper
 import com.owncloud.android.data.user.datasources.mapper.RemoteUserQuotaMapper
+import com.owncloud.android.domain.user.model.UserAvatar
 import com.owncloud.android.domain.user.model.UserInfo
 import com.owncloud.android.domain.user.model.UserQuota
 import com.owncloud.android.lib.resources.users.services.UserService
@@ -30,7 +32,8 @@ import com.owncloud.android.lib.resources.users.services.UserService
 class OCRemoteUserDataSource(
     private val userService: UserService,
     private val remoteUserInfoMapper: RemoteUserInfoMapper,
-    private val remoteUserQuotaMapper: RemoteUserQuotaMapper
+    private val remoteUserQuotaMapper: RemoteUserQuotaMapper,
+    private val remoteUserAvatarMapper: RemoteUserAvatarMapper
 ) : RemoteUserDataSource {
 
     override fun getUserInfo(): UserInfo {
@@ -43,5 +46,11 @@ class OCRemoteUserDataSource(
         executeRemoteOperation {
             userService.getUserQuota()
         }.let { return remoteUserQuotaMapper.toModel(it)!! }
+    }
+
+    override fun getUserAvatar(): UserAvatar {
+        executeRemoteOperation {
+            userService.getUserAvatar()
+        }.let { return remoteUserAvatarMapper.toModel(it)!! }
     }
 }
