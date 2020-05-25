@@ -42,6 +42,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.drawerlayout.widget.DrawerLayout.DrawerListener
+import androidx.lifecycle.Observer
 import com.google.android.material.navigation.NavigationView
 import com.owncloud.android.BuildConfig
 import com.owncloud.android.MainApp.Companion.accountType
@@ -50,8 +51,9 @@ import com.owncloud.android.R
 import com.owncloud.android.authentication.AccountUtils
 import com.owncloud.android.datamodel.OCFile
 import com.owncloud.android.datamodel.ThumbnailsCacheManager.GetAvatarTask
-import com.owncloud.android.datamodel.UserProfilesRepository
 import com.owncloud.android.lib.common.OwnCloudAccount
+import com.owncloud.android.presentation.UIResult
+import com.owncloud.android.presentation.viewmodels.drawer.DrawerViewModel
 import com.owncloud.android.utils.DisplayUtils
 import com.owncloud.android.utils.PreferenceUtils
 import kotlinx.android.synthetic.main.activity_main.*
@@ -59,6 +61,7 @@ import kotlinx.android.synthetic.main.nav_coordinator_layout.*
 import kotlinx.android.synthetic.main.nav_drawer_content.*
 import kotlinx.android.synthetic.main.nav_drawer_footer.*
 import kotlinx.android.synthetic.main.nav_drawer_header.*
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import timber.log.Timber
 import kotlin.math.ceil
 
@@ -67,6 +70,8 @@ import kotlin.math.ceil
  * generation.
  */
 abstract class DrawerActivity : ToolbarActivity() {
+
+    private val drawerViewModel by viewModel<DrawerViewModel>()
 
     private var menuAccountAvatarRadiusDimension = 0f
     private var currentAccountAvatarRadiusDimension = 0f
@@ -414,37 +419,45 @@ abstract class DrawerActivity : ToolbarActivity() {
      * Updates the quota in the drawer
      */
     private fun updateQuota() {
+        Timber.d("Update Quota")
         val account = AccountUtils.getCurrentOwnCloudAccount(this) ?: return
-        val userQuota = UserProfilesRepository.getUserProfilesRepository().getQuota(account.name) ?: return
+        drawerViewModel.fetchUserQuota(account.name)
+        drawerViewModel.userQuota.observe(this, Observer { event ->
+            when (event.peekContent()) {
+                is UIResult.Success -> {
+                    event.peekContent().getStoredData()?.let { userQuota ->
+                        when {
+                            userQuota.available < 0 -> { // Pending, unknown or unlimited free storage
+                                account_quota_bar?.visibility = View.VISIBLE
+                                account_quota_bar?.progress = 0
+                                account_quota_text?.text = String.format(
+                                    getString(R.string.drawer_unavailable_free_storage),
+                                    DisplayUtils.bytesToHumanReadable(userQuota.used, this)
+                                )
+                            }
+                            userQuota.available == 0L -> { // Quota 0, guest users
+                                account_quota_bar?.visibility = View.GONE
+                                account_quota_text?.text = getString(R.string.drawer_unavailable_used_storage)
+                            }
+                            else -> { // Limited quota
+                                account_quota_bar?.visibility = View.VISIBLE
 
-        if (account_quota_bar != null && account_quota_text != null) {
-            when {
-                userQuota.free < 0 -> { // Pending, unknown or unlimited free storage
-                    account_quota_bar.visibility = View.VISIBLE
-                    account_quota_bar.progress = 0
-                    account_quota_text.text = String.format(
-                        getString(R.string.drawer_unavailable_free_storage),
-                        DisplayUtils.bytesToHumanReadable(userQuota.used, this)
-                    )
+                                // Update progress bar rounding up to next int. Example: quota is 0.54 => 1
+                                account_quota_bar?.progress = ceil(userQuota.getRelative()).toInt()
+                                account_quota_text?.text = String.format(
+                                    getString(R.string.drawer_quota),
+                                    DisplayUtils.bytesToHumanReadable(userQuota.used, this),
+                                    DisplayUtils.bytesToHumanReadable(userQuota.getTotal(), this),
+                                    java.lang.String.valueOf(userQuota.getRelative())
+                                )
+                            }
+                        }
+                    }
                 }
-                userQuota.free == 0L -> { // Quota 0, guest users
-                    account_quota_bar.visibility = View.GONE
-                    account_quota_text.text = getString(R.string.drawer_unavailable_used_storage)
-                }
-                else -> { // Limited quota
-                    account_quota_bar.visibility = View.VISIBLE
-
-                    // Update progress bar rounding up to next int. Example: quota is 0.54 => 1
-                    account_quota_bar.progress = ceil(userQuota.relative).toInt()
-                    account_quota_text.text = String.format(
-                        getString(R.string.drawer_quota),
-                        DisplayUtils.bytesToHumanReadable(userQuota.used, this),
-                        DisplayUtils.bytesToHumanReadable(userQuota.total, this),
-                        java.lang.String.valueOf(userQuota.relative)
-                    )
-                }
+                is UIResult.Loading -> account_quota_text?.text = getString(R.string.drawer_loading_quota)
+                is UIResult.Error -> account_quota_text?.text = getString(R.string.drawer_unavailable_used_storage)
             }
-        }
+        })
     }
 
     /**
@@ -467,7 +480,7 @@ abstract class DrawerActivity : ToolbarActivity() {
      * @param account the account to be set in the drawer
      */
     protected fun setAccountInDrawer(account: Account) {
-        if (drawer_layout != null && account != null) {
+        if (drawer_layout != null) {
             drawer_username_full?.text = account.name
             try {
                 val oca = OwnCloudAccount(account, this)
