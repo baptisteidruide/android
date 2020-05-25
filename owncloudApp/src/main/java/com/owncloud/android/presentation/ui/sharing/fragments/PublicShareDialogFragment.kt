@@ -429,7 +429,7 @@ class PublicShareDialogFragment : DialogFragment() {
         try {
             listener = activity as ShareFragmentListener?
         } catch (e: IllegalStateException) {
-            throw IllegalStateException(activity!!.toString() + " must implement OnShareFragmentInteractionListener")
+            throw IllegalStateException(requireActivity().toString() + " must implement OnShareFragmentInteractionListener")
         }
     }
 
@@ -518,7 +518,7 @@ class PublicShareDialogFragment : DialogFragment() {
                 shareViaLinkPasswordValue?.requestFocus()
 
                 // Show keyboard to fill in the password
-                val mgr = activity!!.getSystemService(
+                val mgr = requireActivity().getSystemService(
                     Context.INPUT_METHOD_SERVICE
                 ) as InputMethodManager
                 mgr.showSoftInput(shareViaLinkPasswordValue, InputMethodManager.SHOW_IMPLICIT)
@@ -569,7 +569,7 @@ class PublicShareDialogFragment : DialogFragment() {
                 )
                 dialog.setDatePickerListener(this)
                 dialog.show(
-                    activity!!.supportFragmentManager,
+                    requireActivity().supportFragmentManager,
                     ExpirationDatePickerDialogFragment.DATE_PICKER_DIALOG
                 )
             } else {
@@ -593,7 +593,7 @@ class PublicShareDialogFragment : DialogFragment() {
             )
             dialog.setDatePickerListener(this)
             dialog.show(
-                activity!!.supportFragmentManager,
+                requireActivity().supportFragmentManager,
                 ExpirationDatePickerDialogFragment.DATE_PICKER_DIALOG
             )
         }
